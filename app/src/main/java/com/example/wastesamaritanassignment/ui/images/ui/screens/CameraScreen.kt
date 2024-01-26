@@ -92,7 +92,7 @@ class CameraScreen : ComponentActivity() {
             }
         }
         Scaffold(
-            // ... rest of your Scaffold parameters
+
         ) { padding ->
             Box(
                 modifier = Modifier
@@ -130,7 +130,6 @@ class CameraScreen : ComponentActivity() {
                         .padding(16.dp),
                 ) {
                     FloatingActionButton(onClick = {
-                       // controller.unbind()
                         this@CameraScreen.finish()
                     },
                         containerColor = colorResource(id = R.color.darkGreen)
