@@ -1,9 +1,12 @@
 package com.example.wastesamaritanassignment.ui.detail
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -55,6 +58,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -86,7 +90,6 @@ fun NoteDetailsScreen(
     val context = LocalContext.current
     val bitmaps by viewModel.getBitmapsStateFlow().collectAsState()
     val isBottomSheetVisible = remember { mutableStateOf(false) }
-    val isPreview = remember { mutableStateOf(false) }
     var imageId: String by remember {
         mutableStateOf("")
     }
@@ -105,11 +108,25 @@ fun NoteDetailsScreen(
                 imageId=existingNoteDetails.imageId
             }
         }
-        if(noteId != "null")
-        {
-            isPreview.value=true
+        val idToLoad = if (tempId != null && imageId == "") tempId else imageId
+        viewModel.loadImages(idToLoad) { updatedImages ->
+            viewModel.updateBitmaps(updatedImages)
         }
+    }
 
+    // Create an ActivityResultLauncher to start CameraScreen
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // Handle the result from CameraScreen here
+        if (result.resultCode == Activity.RESULT_OK) {
+            // Trigger image loading based on the result
+            val data = result.data
+            val imageId = data?.getStringExtra("NOTE_ID")
+            viewModel.loadImages(imageId!!) { updatedImages ->
+                viewModel.updateBitmaps(updatedImages)
+            }
+        }
     }
 
     Scaffold(
@@ -188,18 +205,18 @@ fun NoteDetailsScreen(
                 FloatingActionButton(
                     onClick = {
                         if (noteId != "null") {
-                            val intent = Intent(context, CameraScreen::class.java)
-                            intent.putExtra("NOTE_ID", imageId)
-                            context.startActivity(intent)
-                            isPreview.value = true
+                            // Start CameraScreen for result
+                            cameraLauncher.launch(
+                                Intent(context, CameraScreen::class.java)
+                                    .putExtra("NOTE_ID", imageId)
+                            )
                             isBottomSheetVisible.value = false
-                        }
-                        else
-                        {
-                            val intent = Intent(context, CameraScreen::class.java)
-                            intent.putExtra("NOTE_ID", tempId)
-                            context.startActivity(intent)
-                            isPreview.value = true
+                        } else {
+                            // Start CameraScreen for result
+                            cameraLauncher.launch(
+                                Intent(context, CameraScreen::class.java)
+                                    .putExtra("NOTE_ID", tempId)
+                            )
                             isBottomSheetVisible.value = false
                         }
                     },
@@ -254,8 +271,8 @@ fun NoteDetailsScreen(
                     VisualTransformation.None
                 } else {
                     VisualTransformation.None
-                }
-
+                },
+                singleLine = true
             )
 
             OutlinedTextField(
@@ -287,7 +304,8 @@ fun NoteDetailsScreen(
                     focusedLabelColor = colorResource(id = R.color.darkGreen),
                     cursorColor = colorResource(id = R.color.darkGreen)
                 ),
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                singleLine = true
             )
             OutlinedTextField(
                 modifier = Modifier
@@ -327,74 +345,31 @@ fun NoteDetailsScreen(
                     },
                     modifier = Modifier.padding(12.dp,0.dp,0.dp,8.dp)
                 )
-
-
-                if(isPreview.value) {
-                    Row(
+                if(tempId!="null") {
+                    PhotoBottomSheetContent(
+                        bitmaps = bitmaps,
+                        onDeleteImage = { deletedBitmap ->
+                            viewModel.deleteImage(tempId!!, deletedBitmap)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp, 0.dp, 0.dp, 0.dp)
-                    ) {
-                        Button(modifier = Modifier
+                            .size(200.dp)
+                    )
+                }
+                else
+                {
+                    PhotoBottomSheetContent(
+                        bitmaps = bitmaps,
+                        onDeleteImage = { deletedBitmap ->
+                            viewModel.deleteImage(imageId, deletedBitmap)
+                        },
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.Transparent),
-                            colors = ButtonDefaults.buttonColors(Color.Transparent), onClick = {
-                                isBottomSheetVisible.value = !isBottomSheetVisible.value
-                                if(tempId!=null && imageId=="")
-                                {
-                                    Log.d("noteID", "temp is using")
-
-                                    viewModel.loadImages(tempId) { updatedImages ->
-
-                                        viewModel.updateBitmaps(updatedImages)
-                                        isPreview.value = !isPreview.value
-                                    }
-
-                                }
-                                else
-                                {
-                                    viewModel.loadImages(imageId) { updatedImages ->
-
-                                        viewModel.updateBitmaps(updatedImages)
-                                        isPreview.value = !isPreview.value
-                                    }
-                                }
-                            }) {
-                            Text(
-                                text = "Preview Images",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                fontSize = 20.sp
-                            )
-                        }
-                    }
+                            .size(200.dp)
+                    )
                 }
 
-                if (isBottomSheetVisible.value) {
-                    if(tempId!="null") {
-                        PhotoBottomSheetContent(
-                            bitmaps = bitmaps,
-                            onDeleteImage = { deletedBitmap ->
-                                viewModel.deleteImage(tempId!!, deletedBitmap)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .size(200.dp)
-                        )
-                    }
-                    else
-                    {
-                        PhotoBottomSheetContent(
-                            bitmaps = bitmaps,
-                            onDeleteImage = { deletedBitmap ->
-                                viewModel.deleteImage(imageId, deletedBitmap)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .size(200.dp)
-                        )
-                    }
-                }
+
             }
 
         }
@@ -406,15 +381,17 @@ fun PhotoBottomSheetContent(
     onDeleteImage: (Bitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    /*if(bitmaps.isEmpty()) {
+    if(bitmaps.isEmpty()) {
          Box(
              modifier = modifier
                  .padding(16.dp),
              contentAlignment = Alignment.Center
          ) {
-             Text("No images taken.")
+             Text(text = "No images taken.",
+                 fontWeight = FontWeight.Bold,
+                 fontSize = 20.sp)
          }
-     } else {*/
+     } else {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(16.dp),
@@ -440,6 +417,7 @@ fun PhotoBottomSheetContent(
                 )
             }
         }
+    }
     }
 }
 

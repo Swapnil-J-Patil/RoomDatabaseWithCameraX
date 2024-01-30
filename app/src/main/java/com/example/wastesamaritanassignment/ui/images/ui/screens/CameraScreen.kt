@@ -2,6 +2,8 @@ package com.example.wastesamaritanassignment.ui.images.ui.screens
 
 //@file:OptIn(ExperimentalMaterial3Api::class)
 
+import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
@@ -49,11 +51,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
 import com.example.wastesamaritanassignment.R
 import com.example.wastesamaritanassignment.ui.images.CameraViewModel
 import com.example.wastesamaritanassignment.ui.images.MainViewModelFactory
 
-class CameraScreen : ComponentActivity() {
+class CameraScreen() : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -64,7 +67,6 @@ class CameraScreen : ComponentActivity() {
     @Composable
     fun CameraScreenApp() {
         val intent = intent
-
 // Get the data using getStringExtra (assuming it's a String)
         val noteID = intent.getStringExtra("NOTE_ID")
 
@@ -130,7 +132,14 @@ class CameraScreen : ComponentActivity() {
                         .padding(16.dp),
                 ) {
                     FloatingActionButton(onClick = {
-                        this@CameraScreen.finish()
+// Set the result to be sent back to the calling activity
+                        val resultIntent = Intent().apply {
+                            // You can put additional data in the intent if needed
+                            putExtra("NOTE_ID", noteID)
+                        }
+
+                        setResult(Activity.RESULT_OK, resultIntent)
+                        finish()
                     },
                         containerColor = colorResource(id = R.color.darkGreen)
                     )
@@ -152,7 +161,7 @@ class CameraScreen : ComponentActivity() {
                 ) {
                     if (!isButtonVisible) {
                         Text(
-                            text = "Wait! Saving Image...",
+                            text = "Please Wait! Saving Image...",
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             fontSize = 20.sp
