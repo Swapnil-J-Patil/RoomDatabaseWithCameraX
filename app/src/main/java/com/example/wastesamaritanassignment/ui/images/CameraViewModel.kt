@@ -4,9 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.wastesamaritanassignment.ui.speechrecognition.TextState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -24,6 +28,9 @@ class CameraViewModel(private val context: Context,private val noteID: String?) 
    private val _isSavingImage = MutableStateFlow(false)
     val isSavingImage = _isSavingImage.asStateFlow()
 
+    var state by mutableStateOf(TextState())
+        private set
+
     fun onTakePhoto(bitmap: Bitmap) {
         viewModelScope.launch {
             _bitmaps.value += bitmap
@@ -38,7 +45,7 @@ class CameraViewModel(private val context: Context,private val noteID: String?) 
                 _isSavingImage.value = true // Set the state to true when saving starts
                 val file = File(context.filesDir, "captured_image_${noteId}_${System.currentTimeMillis()}.png")
                 val stream = FileOutputStream(file)
-                bitmap.compress(Bitmap.CompressFormat.PNG, 50, stream)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
                 stream.flush()
                 stream.close()
                 Log.d("SaveImage", "Saved image with file name: $file")

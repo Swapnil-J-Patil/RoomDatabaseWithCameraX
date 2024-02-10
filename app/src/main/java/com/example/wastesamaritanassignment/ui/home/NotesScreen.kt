@@ -1,5 +1,13 @@
 package com.example.wastesamaritanassignment.ui.home
 
+import android.Manifest
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,11 +35,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -41,20 +55,167 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.wastesamaritanassignment.R
 import com.example.wastesamaritanassignment.data.room.converters.DateTimeUtil
 import com.example.wastesamaritanassignment.data.room.models.Note
+import com.example.wastesamaritanassignment.ui.speechrecognition.SpeechRecognitionContract
+import com.example.wastesamaritanassignment.ui.speechrecognition.SpeechRecognizerContract
 import com.example.wastesamaritanassignment.ui.viewmodel.NotesEvent
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberPermissionState
+import java.util.Locale
+import kotlin.math.sqrt
 
-@OptIn(ExperimentalMaterial3Api::class)
+private const val THRESHOLD = 30.0 // You may need to adjust this value based on testing
+private const val STABLE_DELAY = 2000L // 5 seconds
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun NotesScreen(
     notes: List<Note>,
     navController: NavController,
     eventHandler: (NotesEvent) -> Unit
 ) {
+    var isDetailsScreenLaunched by remember { mutableStateOf(false) }
+    //Motion detection
+    val context: Context = LocalContext.current
+    val permissionState = rememberPermissionState(
+        permission = Manifest.permission.RECORD_AUDIO
+    )
+    SideEffect {
+        permissionState.launchPermissionRequest()
+    }
 
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = SpeechRecognitionContract(),
+        onResult = { result ->
+            result?.let {
+                val recognizedText = it[0].toLowerCase(Locale.getDefault())
+                if (recognizedText.contains("ಹೊಸ")) {
+                    isDetailsScreenLaunched=true
+                    val add=true
+                    navController.navigate("NoteDetailsScreen/${null}/${"TempID"+System.currentTimeMillis()}/${add}") }
+            }
+        }
+    )
+    val speechRecognizerLauncherEnglish = rememberLauncherForActivityResult(
+        contract = SpeechRecognizerContract(),
+        onResult = { result ->
+            result?.let {
+                val recognizedText = it[0].toLowerCase(Locale.getDefault())
+
+                //to open a note
+                if (recognizedText.contains("note")) {
+                    val index = extractWords(recognizedText)
+                    val i= extractNumber(index).toIntOrNull()
+                    // If a valid index is extracted, navigate to the details screen of the corresponding note
+                    if (i != null && i >= 0 && i < notes.size) {
+                        val add = false
+                        navController.navigate("NoteDetailsScreen/${notes[i].id}/${null}/${add}") {
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                //to delete a note
+                if (recognizedText.contains("delete")) {
+                    val index = extractWords(recognizedText)
+                    val i= extractNumber(index).toIntOrNull()
+                    Log.d("noteIndex", "This is note index:$i")
+                    // If a valid index is extracted, navigate to the details screen of the corresponding note
+                    if (i != null && i >= 0 && i < notes.size) {
+                        eventHandler(NotesEvent.DeleteNote(notes[i]))
+                    }
+                }
+            }
+        }
+    )
+    DisposableEffect(context) {
+        var lastShakeTime = 0L
+        val sensorManager = ContextCompat.getSystemService(context, SensorManager::class.java)
+        val accelerometerSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                event?.let {
+                    val x = it.values[0]
+                    val y = it.values[1]
+                    val z = it.values[2]
+
+                    val acceleration = sqrt(x * x + y * y + z * z)
+
+                    if (acceleration > THRESHOLD) {
+                        // Phone is shaking
+                        if (System.currentTimeMillis() - lastShakeTime > STABLE_DELAY) {
+                            if(!isDetailsScreenLaunched) {
+                                speechRecognizerLauncher.launch(Unit)
+                            }
+                        }
+                        lastShakeTime = System.currentTimeMillis()
+                    }
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                // Not needed for this example
+            }
+        }
+
+        sensorManager?.registerListener(listener, accelerometerSensor, SensorManager.SENSOR_DELAY_NORMAL)
+
+        onDispose {
+            // Unregister the sensor listener when the composable is disposed
+            if(!isDetailsScreenLaunched) {
+                sensorManager?.unregisterListener(listener)
+            }
+        }
+    }
+    DisposableEffect(context) {
+        var lastProximityState = false
+        val sensorManager = ContextCompat.getSystemService(context, SensorManager::class.java)
+        val proximityThreshold = 5.0 // Adjust this value based on testing
+        val proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+
+        val proximityListener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                // Proximity sensor logic
+                event?.let {
+                    val distance = it.values[0]
+
+                    if (distance < proximityThreshold) {
+                        // Proximity sensor triggered
+                        if (!lastProximityState) {
+                            lastProximityState = true
+                            // Load English speech recognition
+                            if(!isDetailsScreenLaunched) {
+                            speechRecognizerLauncherEnglish.launch(Unit)
+                            }
+                        }
+                    } else {
+                        lastProximityState = false
+                    }
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                // Not needed for this example
+            }
+        }
+
+        sensorManager?.registerListener(
+            proximityListener,
+            proximitySensor,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+
+        onDispose {
+            // Unregister the sensor listener when the composable is disposed
+            if(!isDetailsScreenLaunched) {
+            sensorManager?.unregisterListener(proximityListener)
+            }
+        }
+    }
     Scaffold(
         topBar = {
             Row(
@@ -73,7 +234,7 @@ fun NotesScreen(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
 
-                IconButton(onClick = { eventHandler(NotesEvent.SortNotes) }
+               /* IconButton(onClick = { eventHandler(NotesEvent.SortNotes) }
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Sort,
@@ -81,7 +242,7 @@ fun NotesScreen(
                         modifier = Modifier.size(35.dp),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
-                }
+                }*/
             }
         },
 
@@ -125,19 +286,57 @@ fun NotesScreen(
                             navController.navigate("NoteDetailsScreen/${notes[index].id}/${null}/${add}") {
                                 launchSingleTop = true
                             }
-                        }
+                        },
+                        index=index
                     )
                 }
             }
         }
     }
 }
+private fun extractWords(text: String): String {
+    val firstSpaceIndex = text.indexOf(' ')
+
+    // Return the substring starting from the character after the first space
+    return if (firstSpaceIndex != -1) {
+        text.substring(firstSpaceIndex + 1).trim()
+    } else {
+        // Return empty string if there is no space (only one word)
+        ""
+    }
+}
+private fun extractNumber(text: String): String {
+    Log.d("noteIndex", "This is note index:$text")
+
+    val wordVariations = hashMapOf(
+        "zero" to "0",
+        "0" to "0",
+        "one" to "1",
+        "1" to "1",
+        "to" to "2",
+        "too" to "2",
+        "two" to "2",
+        "three" to "3",
+        "3" to "3",
+        "four" to "4",
+        "for" to "4",
+        "five" to "5",
+        "file" to "5",
+        "5" to "5",
+        // Add more variations as needed
+    )
+
+    // Check if the text is present in the map, if not, return the original text
+    val normalizedText = text.trim().toLowerCase()
+    return wordVariations[normalizedText] ?: normalizedText
+}
 
 @Composable
 fun NoteCard(
     note: Note,
     onEvent: (NotesEvent) -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    index: Int,
 ) {
 
     val formattedDate = remember(note.timestamp) {
@@ -169,6 +368,7 @@ fun NoteCard(
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .clickable(MutableInteractionSource(), null) {
+                        Log.d("noteIndex", "This is note index:$note")
                         onEvent(NotesEvent.DeleteNote(note))
                     }
             )
@@ -192,7 +392,13 @@ fun NoteCard(
             fontWeight = FontWeight.Light,
             color = MaterialTheme.colorScheme.background
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Note Index: $index", // Display the index dynamically
+            modifier = Modifier.align(Alignment.End),
+            color = MaterialTheme.colorScheme.background
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = formattedDate,
             color = MaterialTheme.colorScheme.background,

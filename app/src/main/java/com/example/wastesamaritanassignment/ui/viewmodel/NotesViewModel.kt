@@ -7,10 +7,12 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.wastesamaritanassignment.data.NoteDao
 import com.example.wastesamaritanassignment.data.room.models.Note
+import com.example.wastesamaritanassignment.ui.speechrecognition.TextState
 import com.example.wastesamaritanassignment.ui.viewmodel.NotesEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +42,8 @@ class NotesViewModel(
     fun updateBitmaps(updatedImages: List<Bitmap>) {
         _bitmaps.value = updatedImages
     }
-
+    var state by mutableStateOf(TextState())
+        private set
 
     // State for note input
     private val _titleState: MutableState<String> = mutableStateOf("")
@@ -72,7 +75,7 @@ class NotesViewModel(
                 event.updatedRemarks,
                 event.updatedRating
             )
-            NotesEvent.SortNotes -> isSortedByDateAdded.value = !isSortedByDateAdded.value
+           // NotesEvent.SortNotes -> isSortedByDateAdded.value = !isSortedByDateAdded.value
         }
     }
 

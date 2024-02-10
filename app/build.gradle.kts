@@ -98,4 +98,7 @@ dependencies {
 
     implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.0")
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.4.0")
+
+    //permission handling in compose
+    implementation ("com.google.accompanist:accompanist-permissions:0.24.11-rc")
 }

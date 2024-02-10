@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import com.example.wastesamaritanassignment.data.room.models.Note
 
 sealed interface NotesEvent {
-    object SortNotes : NotesEvent
+   // object SortNotes : NotesEvent
     data class DeleteNote(
         val note: Note
     ) : NotesEvent
